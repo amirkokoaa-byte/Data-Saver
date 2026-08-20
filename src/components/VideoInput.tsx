@@ -7,13 +7,14 @@ interface VideoQuality {
 }
 
 interface VideoData {
+  videoId: string;
   title: string;
   duration: number;
   thumbnail: string;
   qualities: VideoQuality[];
 }
 
-export function VideoInput({ onPlay }: { onPlay?: (url: string, quality: string) => void }) {
+export function VideoInput({ onPlay }: { onPlay?: (videoId: string) => void }) {
   const [url, setUrl] = useState('');
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,13 +102,22 @@ export function VideoInput({ onPlay }: { onPlay?: (url: string, quality: string)
             {videoData.qualities.map((q, index) => (
               <div 
                 key={index} 
-                onClick={() => onPlay && onPlay(url, q.quality)}
-                className="bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 p-3 rounded-lg text-center hover:shadow-md transition-shadow cursor-pointer hover:border-blue-500 dark:hover:border-blue-500"
+                className="bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 p-3 rounded-lg text-center hover:shadow-md transition-shadow cursor-default"
               >
                 <p className="text-lg font-bold text-blue-600 dark:text-blue-400" dir="ltr">{q.quality}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{q.sizeMB} MB</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <button 
+              onClick={() => onPlay && onPlay(videoData.videoId)}
+              className="bg-green-600 text-white px-8 py-3 rounded-full hover:bg-green-700 transition-all font-bold text-lg shadow-lg flex items-center gap-2"
+            >
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z" /></svg>
+              تشغيل الفيديو الآن
+            </button>
           </div>
         </div>
       )}

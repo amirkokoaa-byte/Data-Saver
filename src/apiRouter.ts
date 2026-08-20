@@ -149,6 +149,7 @@ apiRouter.post("/video-size", async (req: Request, res: Response) => {
       }
 
       return res.json({
+        videoId: ytdl.getVideoID(url),
         title: info.videoDetails.title,
         duration: durationSeconds,
         thumbnail: info.videoDetails.thumbnails[0]?.url,
@@ -189,6 +190,7 @@ apiRouter.post("/video-size", async (req: Request, res: Response) => {
       });
       
       return res.json({
+         videoId: videoId,
          title: item.snippet.title,
          duration: durationSeconds,
          thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,

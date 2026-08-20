@@ -1,195 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { useGoogleLogin, googleLogout } from '@react-oauth/google';
+import React, { useState } from 'react';
+import { LoginButton } from './components/LoginButton';
+import { VideoInput } from './components/VideoInput';
 import { DataSaverPlayer } from './components/DataSaverPlayer';
 import { Dashboard } from './components/Dashboard';
 import { useDataTracker } from './hooks/useDataTracker';
-import { LoginButton } from './components/LoginButton';
-import { VideoInput } from './components/VideoInput';
-import { PlaySquare, LogOut, Search, Activity, Save, Video } from 'lucide-react';
 
 export default function App() {
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<{name: string, picture: string} | null>(null);
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoId, setVideoId] = useState<string | null>(null);
-  const [dataSaver, setDataSaver] = useState(false);
-  const { dailyData, todayUsage, addUsage, clearHistory } = useDataTracker();
-  const [playlists, setPlaylists] = useState<any[]>([]);
+  // حالة (State) لحفظ معرف الفيديو الذي يريد المستخدم مشاهدته
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   
-  useEffect(() => {
-    // استرجاع بيانات المستخدم من التخزين المحلي كما هو مطلوب
-    const name = localStorage.getItem("userName");
-    const picture = localStorage.getItem("userPicture");
-    if (name && picture) {
-      setUserProfile({ name, picture });
-    }
-  }, []);
-
-  const login = useGoogleLogin({
-    onSuccess: (codeResponse) => setAccessToken(codeResponse.access_token),
-    onError: (error) => console.log('Login Failed:', error),
-    scope: 'https://www.googleapis.com/auth/youtube.readonly',
-  });
-
-  const handleLogout = () => {
-    googleLogout();
-    setAccessToken(null);
-    setUserProfile(null);
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userPicture");
-    setPlaylists([]);
-  };
-
-  useEffect(() => {
-    if (accessToken) {
-      fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=5', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.items) setPlaylists(data.items);
-      })
-      .catch(err => console.error("Failed to fetch playlists", err));
-    }
-  }, [accessToken]);
-
-  const extractVideoId = (url: string) => {
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&]{11})/);
-    return match ? match[1] : null;
-  };
-
-  const handleLoadVideo = (e: React.FormEvent) => {
-    e.preventDefault();
-    const id = extractVideoId(videoUrl);
-    if (id) {
-      setVideoId(id);
-    } else {
-      alert("Invalid YouTube URL");
-    }
-  };
+  // لجلب الإحصائيات الخاصة بلوحة التحكم
+  const { dailyData, todayUsage } = useDataTracker();
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans selection:bg-blue-200 dark:selection:bg-blue-900">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border-b border-neutral-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-inner shadow-blue-400/20">
-               <Activity className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="font-semibold tracking-tight text-lg">StreamGuard</h1>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {userProfile || accessToken ? (
-              <div className="flex items-center gap-3">
-                {userProfile && (
-                  <div className="flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-full">
-                    <img src={userProfile.picture} alt={userProfile.name} className="w-6 h-6 rounded-full" />
-                    <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                      {userProfile.name}
-                    </span>
-                  </div>
-                )}
-                {!userProfile && (
-                  <span className="text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">
-                    Connected
-                  </span>
-                )}
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <LoginButton onSuccess={setUserProfile} />
-                <button 
-                  onClick={() => login()}
-                  className="hidden sm:flex items-center gap-2 px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-sm"
-                  title="Connect YouTube (for playlists)"
-                >
-                  <Video className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
+    <main className="min-h-screen bg-gray-50 dark:bg-neutral-950 pb-16 font-sans">
+      
+      {/* الشريط العلوي (Header) */}
+      <header className="bg-white dark:bg-neutral-900 shadow-sm sticky top-0 z-50 border-b border-gray-200 dark:border-neutral-800">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-2xl font-extrabold tracking-tight text-blue-700 dark:text-blue-500">
+            يوتيوب <span className="text-green-500">داتا سيفر</span>
+          </h1>
+          <LoginButton onSuccess={() => {}} />
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-5xl mx-auto px-4 mt-8 space-y-12">
         
-        {/* Left Column: Player & Controls */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          
-          {/* Video Analyzer */}
-          <VideoInput 
-            onPlay={(url, quality) => {
-              const id = extractVideoId(url);
-              if (id) {
-                setVideoId(id);
-                // If they chose a low quality (like 144p or 240p), maybe enable data saver automatically.
-                if (quality === '144p' || quality === '240p' || quality === '144p60' || quality === '240p60') {
-                  setDataSaver(true);
-                } else {
-                  setDataSaver(false);
-                }
-              }
-            }} 
-          />
+        {/* قسم إدخال الرابط وتحليل الفيديو */}
+        <section>
+          <VideoInput onPlay={(id) => setActiveVideoId(id)} />
+        </section>
 
-          {/* Video Player */}
-          {videoId && <DataSaverPlayer videoId={videoId} />}
+        {/* قسم مشغل الفيديو (يظهر فقط إذا اختار المستخدم فيديو) */}
+        {activeVideoId && (
+          <section className="animate-fade-in-up">
+            <DataSaverPlayer videoId={activeVideoId} />
+          </section>
+        )}
 
-        </div>
-
-        {/* Right Column: Dashboard & Playlists */}
-        <div className="flex flex-col gap-6 h-full">
-          
+        {/* قسم لوحة التحكم والإحصائيات */}
+        <section>
           <Dashboard data={dailyData} todayUsage={todayUsage} />
+        </section>
 
-          {/* Playlists (OAuth restricted) */}
-          <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 border border-neutral-200 dark:border-neutral-800 shadow-sm flex-1">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
-              <PlaySquare className="w-5 h-5 text-neutral-400" />
-              Your Playlists
-            </h2>
-            
-            {!accessToken ? (
-              <div className="flex flex-col items-center justify-center text-center p-6 bg-neutral-50 dark:bg-neutral-950 rounded-lg border border-neutral-100 dark:border-neutral-800">
-                <Video className="w-8 h-8 text-neutral-300 dark:text-neutral-700 mb-2" />
-                <p className="text-sm text-neutral-500">Connect your account to view your YouTube playlists offline.</p>
-              </div>
-            ) : playlists.length > 0 ? (
-              <ul className="space-y-3">
-                {playlists.map((playlist) => (
-                  <li key={playlist.id} className="flex items-center gap-3 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer" onClick={() => {
-                     // Normally you would fetch playlist items, but for now we just alert
-                     alert('Playlist viewing requires additional YouTube Data API integration.');
-                  }}>
-                    <img 
-                      src={playlist.snippet.thumbnails.default.url} 
-                      alt={playlist.snippet.title} 
-                      className="w-12 h-12 object-cover rounded-md"
-                    />
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">{playlist.snippet.title}</p>
-                      <p className="text-xs text-neutral-500">{playlist.snippet.channelTitle}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-neutral-500 text-center py-4">No playlists found.</p>
-            )}
-          </div>
-          
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
 

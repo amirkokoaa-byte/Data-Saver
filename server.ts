@@ -2,6 +2,17 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import ytdl from "@distube/ytdl-core";
+import dotenv from "dotenv";
+import fs from "fs";
+
+// Load environment variables
+if (fs.existsSync(".env.local")) {
+  dotenv.config({ path: ".env.local" });
+} else if (fs.existsSync(".env")) {
+  dotenv.config({ path: ".env" });
+} else if (fs.existsSync(".env.example")) {
+  dotenv.config({ path: ".env.example" });
+}
 
 // Helper to parse YouTube ISO 8601 duration (PT1M30S)
 function parseDuration(duration: string) {
@@ -52,8 +63,7 @@ async function startServer() {
           formats: formats.sort((a, b) => b.bitrate - a.bitrate),
         });
       } catch (ytdlError) {
-        console.warn("ytdl-core failed, falling back to YouTube Data API (info):", ytdlError);
-        
+        // Silently fall back to YouTube Data API if ytdl-core fails (e.g. due to bot check)
         const videoId = ytdl.getVideoID(videoUrl);
         const apiKey = process.env.YOUTUBE_API_KEY;
         if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");
@@ -150,8 +160,7 @@ async function startServer() {
           qualities: uniqueQualities.sort((a, b) => parseInt(a.quality) - parseInt(b.quality)),
         });
       } catch (ytdlError) {
-        console.warn("ytdl-core failed, falling back to YouTube Data API (size):", ytdlError);
-        
+        // Silently fall back to YouTube Data API if ytdl-core fails (e.g. due to bot check)
         const videoId = ytdl.getVideoID(url);
         const apiKey = process.env.YOUTUBE_API_KEY;
         if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");

@@ -33,13 +33,23 @@ export function VideoInput({ onPlay }: { onPlay?: (url: string, quality: string)
         body: JSON.stringify({ url })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'فشل الاتصال بالخادم');
+      // التحقق مما إذا كان الرد هو JSON فعلاً وليس رسالة خطأ نصية
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'فشل الاتصال بالخادم');
+        }
+        
+        setVideoData(data);
+      } else {
+        // إذا كان الرد ليس JSON (مثل حدوث خطأ 500 في السيرفر)
+        const textError = await response.text();
+        console.error("Server Error:", textError);
+        throw new Error('حدث خطأ داخلي في السيرفر أثناء جلب بيانات يوتيوب. راجع الـ Terminal.');
       }
 
-      setVideoData(data);
     } catch (err: any) {
       setError(err.message);
     } finally {

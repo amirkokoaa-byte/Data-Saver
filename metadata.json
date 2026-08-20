@@ -1,0 +1,6 @@
+{
+  "name": "Data-Saver YouTube Player",
+  "description": "An offline-first YouTube player with data consumption tracking and a low-bandwidth data saver mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

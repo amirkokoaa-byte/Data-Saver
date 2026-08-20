@@ -35,7 +35,7 @@ export function LoginButton({ onSuccess }: LoginButtonProps) {
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={handleError}
-        useOneTap // ميزة تظهر نافذة تسجيل دخول سريعة منبثقة
+        // تم إيقاف useOneTap لتجنب خطأ FedCM NotAllowedError في إطارات (iframes)
       />
     </div>
   );

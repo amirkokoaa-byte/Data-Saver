@@ -3,6 +3,16 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import ytdl from "@distube/ytdl-core";
 
+// Helper to parse YouTube ISO 8601 duration (PT1M30S)
+function parseDuration(duration: string) {
+  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+  if (!match) return 0;
+  const hours = (parseInt(match[1]) || 0);
+  const minutes = (parseInt(match[2]) || 0);
+  const seconds = (parseInt(match[3]) || 0);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -17,31 +27,74 @@ async function startServer() {
         return res.status(400).json({ error: "Invalid YouTube URL" });
       }
 
-      const info = await ytdl.getInfo(videoUrl);
-      
-      const durationSeconds = parseInt(info.videoDetails.lengthSeconds, 10);
-      
-      // Calculate sizes for available formats
-      const formats = info.formats
-        .filter((f) => f.hasVideo && f.hasAudio)
-        .map((f) => {
-          const bitrate = f.bitrate || 0;
-          // approximate size in MB
-          const sizeMB = (bitrate * durationSeconds) / 8 / 1024 / 1024;
-          return {
-            qualityLabel: f.qualityLabel,
-            bitrate,
-            container: f.container,
-            sizeMB: parseFloat(sizeMB.toFixed(2)),
-          };
+      try {
+        const info = await ytdl.getInfo(videoUrl);
+        const durationSeconds = parseInt(info.videoDetails.lengthSeconds, 10);
+        
+        // Calculate sizes for available formats
+        const formats = info.formats
+          .filter((f) => f.hasVideo && f.hasAudio)
+          .map((f) => {
+            const bitrate = f.bitrate || 0;
+            const sizeMB = (bitrate * durationSeconds) / 8 / 1024 / 1024;
+            return {
+              qualityLabel: f.qualityLabel,
+              bitrate,
+              container: f.container,
+              sizeMB: parseFloat(sizeMB.toFixed(2)),
+            };
+          });
+
+        return res.json({
+          title: info.videoDetails.title,
+          durationSeconds,
+          thumbnail: info.videoDetails.thumbnails[0]?.url,
+          formats: formats.sort((a, b) => b.bitrate - a.bitrate),
+        });
+      } catch (ytdlError) {
+        console.warn("ytdl-core failed, falling back to YouTube Data API (info):", ytdlError);
+        
+        const videoId = ytdl.getVideoID(videoUrl);
+        const apiKey = process.env.YOUTUBE_API_KEY;
+        if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");
+        
+        const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoId}&key=${apiKey}`);
+        const data = await response.json();
+        
+        if (!data.items || data.items.length === 0) {
+           return res.status(404).json({ error: "Video not found." });
+        }
+        
+        const item = data.items[0];
+        const durationSeconds = parseDuration(item.contentDetails.duration);
+        
+        // Estimated bitrates in bps
+        const estimatedBitrates = [
+          { qualityLabel: '1080p', bitrate: 8000000, container: 'mp4' },
+          { qualityLabel: '720p', bitrate: 4000000, container: 'mp4' },
+          { qualityLabel: '480p', bitrate: 2000000, container: 'mp4' },
+          { qualityLabel: '360p', bitrate: 1000000, container: 'mp4' },
+          { qualityLabel: '240p', bitrate: 500000, container: 'mp4' },
+          { qualityLabel: '144p', bitrate: 250000, container: 'mp4' }
+        ];
+
+        const formats = estimatedBitrates.map(est => {
+            const sizeMB = (est.bitrate * durationSeconds) / 8 / 1024 / 1024;
+            return {
+               qualityLabel: est.qualityLabel,
+               bitrate: est.bitrate,
+               container: est.container,
+               sizeMB: parseFloat(sizeMB.toFixed(2)),
+            }
         });
 
-      res.json({
-        title: info.videoDetails.title,
-        durationSeconds,
-        thumbnail: info.videoDetails.thumbnails[0]?.url,
-        formats: formats.sort((a, b) => b.bitrate - a.bitrate),
-      });
+        return res.json({
+           title: item.snippet.title,
+           durationSeconds,
+           thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+           formats: formats
+        });
+      }
     } catch (error: any) {
       console.error("Error fetching video info:", error);
       res.status(500).json({ error: "Failed to fetch video information." });
@@ -53,57 +106,92 @@ async function startServer() {
     try {
       const { url } = req.body;
 
-      // التحقق من صحة الرابط
-      if (!ytdl.validateURL(url)) {
+      if (!url || !ytdl.validateURL(url)) {
         return res.status(400).json({ error: 'رابط يوتيوب غير صالح.' });
       }
 
-      // جلب معلومات الفيديو والمسارات المتاحة
-      const info = await ytdl.getInfo(url);
-      const durationSeconds = parseInt(info.videoDetails.lengthSeconds, 10);
+      try {
+        const info = await ytdl.getInfo(url);
+        const durationSeconds = parseInt(info.videoDetails.lengthSeconds, 10);
 
-      // فلترة المسارات للحصول على الفيديوهات بصيغة MP4
-      const formats = info.formats.filter(f => f.hasVideo && f.container === 'mp4');
+        const formats = info.formats.filter(f => f.hasVideo && f.container === 'mp4');
 
-      // حساب الحجم لكل جودة
-      const qualityData = formats.map(format => {
-        let sizeMB = 0;
+        const qualityData = formats.map(format => {
+          let sizeMB = 0;
+          if (format.contentLength) {
+            sizeMB = parseInt(format.contentLength, 10) / (1024 * 1024);
+          } 
+          else if (format.bitrate) {
+            const totalBytes = (format.bitrate * durationSeconds) / 8;
+            sizeMB = totalBytes / (1024 * 1024);
+          }
+
+          return {
+            quality: format.qualityLabel || 'غير معروف',
+            sizeMB: parseFloat(sizeMB.toFixed(2)),
+            url: format.url 
+          };
+        });
+
+        const uniqueQualities: any[] = [];
+        const qualitySet = new Set();
         
-        // الطريقة الأولى: إذا كان يوتيوب يوفر الحجم الدقيق مباشرة (contentLength)
-        if (format.contentLength) {
-          sizeMB = parseInt(format.contentLength, 10) / (1024 * 1024);
-        } 
-        // الطريقة الثانية: حساب تقريبي (معدل البت × الثواني ÷ 8 لتحويلها لبايت)
-        else if (format.bitrate) {
-          const totalBytes = (format.bitrate * durationSeconds) / 8;
-          sizeMB = totalBytes / (1024 * 1024);
+        for (const item of qualityData) {
+          if (!qualitySet.has(item.quality) && item.quality !== 'غير معروف' && item.sizeMB > 0) {
+            qualitySet.add(item.quality);
+            uniqueQualities.push(item);
+          }
         }
 
-        return {
-          quality: format.qualityLabel || 'غير معروف',
-          sizeMB: parseFloat(sizeMB.toFixed(2)),
-          url: format.url // هذا الرابط سنستخدمه لاحقاً للتشغيل
-        };
-      });
-
-      // تنظيف البيانات: إزالة الجودات المكررة والاحتفاظ بأفضل خيار لكل جودة
-      const uniqueQualities: any[] = [];
-      const qualitySet = new Set();
-      
-      for (const item of qualityData) {
-        if (!qualitySet.has(item.quality) && item.quality !== 'غير معروف' && item.sizeMB > 0) {
-          qualitySet.add(item.quality);
-          uniqueQualities.push(item);
+        return res.json({
+          title: info.videoDetails.title,
+          duration: durationSeconds,
+          thumbnail: info.videoDetails.thumbnails[0]?.url,
+          qualities: uniqueQualities.sort((a, b) => parseInt(a.quality) - parseInt(b.quality)),
+        });
+      } catch (ytdlError) {
+        console.warn("ytdl-core failed, falling back to YouTube Data API (size):", ytdlError);
+        
+        const videoId = ytdl.getVideoID(url);
+        const apiKey = process.env.YOUTUBE_API_KEY;
+        if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");
+        
+        const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoId}&key=${apiKey}`);
+        const data = await response.json();
+        
+        if (!data.items || data.items.length === 0) {
+           return res.status(404).json({ error: "Video not found." });
         }
+        
+        const item = data.items[0];
+        const durationSeconds = parseDuration(item.contentDetails.duration);
+        
+        const estimatedBitrates = [
+          { quality: '144p', kbps: 250 },
+          { quality: '240p', kbps: 500 },
+          { quality: '360p', kbps: 1000 },
+          { quality: '480p', kbps: 2000 },
+          { quality: '720p', kbps: 4000 },
+          { quality: '1080p', kbps: 8000 }
+        ];
+        
+        const qualities = estimatedBitrates.map(est => {
+            const totalBytes = (est.kbps * 1000 * durationSeconds) / 8;
+            const sizeMB = totalBytes / (1024 * 1024);
+            return {
+               quality: est.quality,
+               sizeMB: parseFloat(sizeMB.toFixed(2)),
+               url: "" 
+            }
+        });
+        
+        return res.json({
+           title: item.snippet.title,
+           duration: durationSeconds,
+           thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+           qualities: qualities
+        });
       }
-
-      return res.json({
-        title: info.videoDetails.title,
-        duration: durationSeconds,
-        thumbnail: info.videoDetails.thumbnails[0].url,
-        qualities: uniqueQualities.sort((a, b) => parseInt(a.quality) - parseInt(b.quality)),
-      });
-
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: 'حدث خطأ أثناء جلب بيانات الفيديو.' });

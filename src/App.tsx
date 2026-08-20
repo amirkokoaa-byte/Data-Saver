@@ -164,6 +164,8 @@ export default function App() {
             videoId={videoId} 
             dataSaverEnabled={dataSaver} 
             onUsageReport={addUsage} 
+            todayUsage={todayUsage}
+            usageLimit={500}
           />
 
         </div>

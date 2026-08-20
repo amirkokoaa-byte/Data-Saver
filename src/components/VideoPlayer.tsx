@@ -19,9 +19,11 @@ interface VideoPlayerProps {
   videoId: string | null;
   dataSaverEnabled: boolean;
   onUsageReport: (mb: number) => void;
+  todayUsage?: number;
+  usageLimit?: number;
 }
 
-export function VideoPlayer({ videoId, dataSaverEnabled, onUsageReport }: VideoPlayerProps) {
+export function VideoPlayer({ videoId, dataSaverEnabled, onUsageReport, todayUsage = 0, usageLimit = 500 }: VideoPlayerProps) {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +63,13 @@ export function VideoPlayer({ videoId, dataSaverEnabled, onUsageReport }: VideoP
   useEffect(() => {
     if (!isPlaying || !videoInfo) return;
 
+    if (todayUsage >= usageLimit) {
+      if (playerRef.current) {
+        playerRef.current.pauseVideo();
+      }
+      return;
+    }
+
     // Determine current bitrate based on data saver
     // Data saver forces 144p usually. Without it, let's assume average 720p/1080p bitrate if not specified.
     // For estimation, we'll pick the lowest bitrate format for Data Saver, and a median/high for normal.
@@ -93,8 +102,25 @@ export function VideoPlayer({ videoId, dataSaverEnabled, onUsageReport }: VideoP
 
   const onStateChange: YouTubeProps['onStateChange'] = (event) => {
     // 1 = PLAYING
+    if (event.data === 1 && todayUsage >= usageLimit) {
+      event.target.pauseVideo();
+      setIsPlaying(false);
+      return;
+    }
     setIsPlaying(event.data === 1);
   };
+
+  if (todayUsage >= usageLimit && videoId) {
+    return (
+      <div className="w-full aspect-video bg-red-50 dark:bg-red-900/20 rounded-xl flex flex-col items-center justify-center border border-red-200 dark:border-red-800/50 p-6 text-center">
+        <svg className="w-12 h-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h3 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">تم الوصول للحد الأقصى للبيانات</h3>
+        <p className="text-red-600 dark:text-red-300">لقد استهلكت {usageLimit} MB المخصصة لليوم. تم إيقاف المشغل لتوفير باقتك.</p>
+      </div>
+    );
+  }
 
   if (!videoId) {
     return (

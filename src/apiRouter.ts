@@ -59,7 +59,7 @@ apiRouter.get("/video-info", async (req: Request, res: Response) => {
       // Fallback
       const videoId = ytdl.getVideoID(videoUrl);
       const apiKey = process.env.YOUTUBE_API_KEY;
-      if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");
+      if (!apiKey) throw new Error(`Missing YOUTUBE_API_KEY for fallback. Original ytdl error: ${(ytdlError as any).message}`);
       
       const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoId}&key=${apiKey}`);
       const data = await response.json();
@@ -99,7 +99,10 @@ apiRouter.get("/video-info", async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     console.error("Error fetching video info:", error);
-    res.status(500).json({ error: "Failed to fetch video information." });
+    res.status(500).json({ 
+      error: error.message || "Failed to fetch video information.",
+      stack: error.stack 
+    });
   }
 });
 
@@ -154,7 +157,7 @@ apiRouter.post("/video-size", async (req: Request, res: Response) => {
     } catch (ytdlError) {
       const videoId = ytdl.getVideoID(url);
       const apiKey = process.env.YOUTUBE_API_KEY;
-      if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY for fallback");
+      if (!apiKey) throw new Error(`Missing YOUTUBE_API_KEY for fallback. Original ytdl error: ${(ytdlError as any).message}`);
       
       const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoId}&key=${apiKey}`);
       const data = await response.json();
@@ -192,9 +195,12 @@ apiRouter.post("/video-size", async (req: Request, res: Response) => {
          qualities: qualities
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ error: 'حدث خطأ أثناء جلب بيانات الفيديو.' });
+    return res.status(500).json({ 
+      error: error.message || 'حدث خطأ أثناء جلب بيانات الفيديو.',
+      stack: error.stack 
+    });
   }
 });
 
@@ -219,9 +225,9 @@ apiRouter.get("/youtube-data", async (req: Request, res: Response) => {
     const data = await response.json();
     
     res.json({ success: true, data: data });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching from YouTube API:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch data" });
+    res.status(500).json({ success: false, error: error.message || "Failed to fetch data", stack: error.stack });
   }
 });
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
-import { VideoPlayer } from './components/VideoPlayer';
+import { DataSaverPlayer } from './components/DataSaverPlayer';
 import { Dashboard } from './components/Dashboard';
 import { useDataTracker } from './hooks/useDataTracker';
 import { LoginButton } from './components/LoginButton';
@@ -141,32 +141,8 @@ export default function App() {
             }} 
           />
 
-          {/* Controls */}
-          {videoId && (
-            <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <h3 className="font-medium text-neutral-900 dark:text-neutral-100 flex-1">إعدادات المشغل (Player Settings)</h3>
-              <button
-                onClick={() => setDataSaver(!dataSaver)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  dataSaver 
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
-                  : 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 border border-transparent'
-                }`}
-              >
-                <Save className={`w-4 h-4 ${dataSaver ? 'text-blue-600 dark:text-blue-400' : ''}`} />
-                Data Saver (توفير البيانات): {dataSaver ? 'ON' : 'OFF'}
-              </button>
-            </div>
-          )}
-
           {/* Video Player */}
-          <VideoPlayer 
-            videoId={videoId} 
-            dataSaverEnabled={dataSaver} 
-            onUsageReport={addUsage} 
-            todayUsage={todayUsage}
-            usageLimit={500}
-          />
+          {videoId && <DataSaverPlayer videoId={videoId} />}
 
         </div>
 
